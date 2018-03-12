@@ -43,6 +43,7 @@ module Kitchen
           rsync_command: config[:rsync_command],
           rsync_rsh: config[:rsync_rsh],
           log_level: config[:log_level],
+          context: config[:context],
           logger: logger
         ).tap do |conn|
           block.call(conn) if block
@@ -57,7 +58,7 @@ module Kitchen
         def execute(command)
           return if command.nil?
           # Run via kubectl exec.
-          run_command(kubectl_command('exec', '--tty', '--container=default', options[:pod_id], '--', *Shellwords.split(command)))
+          run_command(kubectl_command('exec', '--tty', '--container=default',"--context=#{options[:context]}", options[:pod_id], '--', *Shellwords.split(command)))
         end
 
         # (see Base::Connection#upload)
@@ -75,7 +76,7 @@ module Kitchen
           # Dash's `type` is super weird so use `which` first in case of dash but
           # fall back to `type` for basically just CentOS.
           login_cmd = "IFS=$'\n'; for f in `which bash zsh sh 2>/dev/null || type -P bash zsh sh`; do exec \"$f\" -l; done"
-          cmd = kubectl_command('exec', '--stdin', '--tty', '--container=default', options[:pod_id], '--', '/bin/sh', '-c', login_cmd)
+          cmd = kubectl_command('exec', '--stdin', '--tty', '--container=default',"--context=#{options[:context]}",options[:pod_id], '--', '/bin/sh', '-c', login_cmd)
           LoginCommand.new(cmd[0], cmd.drop(1))
         end
       end

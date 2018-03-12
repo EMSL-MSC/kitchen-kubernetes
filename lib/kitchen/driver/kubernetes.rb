@@ -41,7 +41,6 @@ module Kitchen
       default_config :cache_path, '/data/chef/%{chef_version}'
       default_config :chef_image, 'chef/chef'
       default_config :chef_version, 'latest'
-      default_config :context, nil
       default_config :image_pull_policy, nil
       default_config :image_pull_secrets, nil
       default_config :init_system, nil
@@ -49,7 +48,6 @@ module Kitchen
       default_config :pod_template, File.expand_path('../pod.yaml.erb', __FILE__)
       default_config :rsync_command, 'rsync'
       default_config :rsync_image, 'kitchenkubernetes/rsync:3.1.2-r5'
-      default_config :rsync_rsh, "#{RbConfig.ruby} -e \"exec('kubectl', 'exec', '--stdin', '--container=rsync', ARGV[0], '--', *ARGV[1..-1])\""
 
       default_config :cache_volume do |driver|
         if driver[:cache_path]
@@ -82,6 +80,23 @@ module Kitchen
       expand_path_for :pod_template
       expand_path_for :rsync_command do |driver|
         driver[:rsync_command] =~ %r{/|\\}
+      end
+
+      # Figure out our Current Context since we always will be calling 
+      # kubctl commands setting the context      
+      default_config :context do |driver|
+        context = nil
+        context_cmd = Mixlib::ShellOut.new(kubectl_command('config', 'current-context'))
+        context_cmd.run_command
+        unless context_cmd.error? || context_cmd.stdout.empty?
+          context = context_cmd.stdout
+        end
+        driver[:context] = context
+      end
+
+      # set rsync command after we have processed the context
+      default_config :rsync_rsh do |driver|
+        "#{RbConfig.ruby} -e \"exec('kubectl', 'exec', '--stdin', '--context=#{driver[:context]}', '--container=rsync', ARGV[0], '--', *ARGV[1..-1])\""
       end
 
       # Work out the default primary container image to use for this instance.
